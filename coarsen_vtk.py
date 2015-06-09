@@ -1,15 +1,13 @@
 #!/usr/bin/python
 
 from os import path, listdir
-from dolfin import *
+from dolfin import Mesh, FunctionSpace, CellSize, project
 from argparse import ArgumentParser
 from subprocess import check_output, STDOUT
-from vtkread import VTKToDOLFIN
 import sys
 import re
 import numpy as np
 
-parameters["allow_extrapolation"] = True
 
 def read_command_line():
     """Read arguments from commandline"""
@@ -20,7 +18,7 @@ def read_command_line():
     parser.add_argument('--length',  type=float, default=0.001,
                         help="The edge length of the new mesh, this only does" + \
                              "one mesh")
-    parser.add_argument('--multiple', default=[1.25, 1.5, 2, 2.5, 3, 4], nargs='*',
+    parser.add_argument('--multiple', default=[1, 1.25, 1.5, 2, 2.5, 3, 4], nargs='*',
                         help="Creates and coursen the files for the original" + \
                         " edge length and edge/l for l in the arguments")
     parser.add_argument('--boundary_layer', default=False)
@@ -41,6 +39,7 @@ def success(text):
 
 def get_mesh(vtu_path, mesh_path, recompute=False):
     if not path.exists(mesh_path+".gz") or recompute:
+        print "Compute dolfin mesh"
         a = check_output(("vmtkmeshreader -ifile %s -ofile %s") % (vtu_path, mesh_path),
                     stderr=STDOUT, shell=True)
         
@@ -71,7 +70,7 @@ def create_mesh(ifile, ofile, length, boundary_layer, recompute=False):
             " -thicknessfactor .95 -sublayerratio .75 -tetrahedralize 1"
 
     # Create a new uniform courser mesh with/without boundary layers
-    if not path.exists(ofile+".gz") or recompute:
+    if not path.exists(ofile) or recompute:
         a = check_output(("vmtkmeshgenerator -ifile %s -edgelength %s %s" + \
                 " -ofile %s") % (ifile, length, t, ofile), stderr=STDOUT, shell=True)
 
@@ -81,7 +80,7 @@ def create_mesh(ifile, ofile, length, boundary_layer, recompute=False):
             print "Something went wrong making the mesh:\n%s" % msg
             sys.exit(0)
 
-    return Mesh(ofile+".gz")
+    #return ReadPolyData(ofile)
 
 
 def get_length(vtu_path, mesh):
@@ -89,13 +88,23 @@ def get_length(vtu_path, mesh):
     DG = FunctionSpace(mesh, "DG", 0)
 
     # Compute local edgelength
-    h = CellSize(mesh)
-    dl = project(h, DG) 
+    h = project(CellSize(mesh), DG)
     
     # Compute median, more robust than mean
-    mean = np.median(dl.vector().array())
+    mean = np.median(h.vector().array())
 
     return mean
+
+
+def project_mesh(ofile, ifile, mesh_new_path, recompute=False):
+    if not path.exists(ofile) or recompute:
+        a = check_output("vmtkmeshprojection -ifile %s -rfile %s -ofile %s" % \
+                        (mesh_new_path, ifile, ofile), shell=True, stderr=STDOUT)
+
+        status, msg = success(a)
+        if not status:
+            print "Something went wrong projecting the mesh:\n%s" % msg
+            sys.exit(0)
 
 
 def main(dirpath, factor, bl):
@@ -118,28 +127,23 @@ def main(dirpath, factor, bl):
     
     for l in length:
         # Compute the new mesh
-        str_length = ("%s" % str(l)).replace(".", "_")
-        files_path = path.join(dirpath, "length_"+str_length+".pvd")
-        mesh_new_path = path.join(dirpath, "mesh_coarsen_l_%s.xml" % str_length)
-        mesh_new = create_mesh(surface_path, mesh_new_path, l, bl)
-        V = VectorFunctionSpace(mesh_new, "CG", 1)
+        str_length = ("%.04f" % l).replace(".", "_")
+        files_path = path.join(dirpath, "length_"+str_length+"_%s.vtu")
+        mesh_new_path = path.join(dirpath, "mesh_coarsen_l_" + str_length +".vtu")
+        create_mesh(surface_path, mesh_new_path, l, bl)
 
         # Coursen and rename
         for file in listdir(dirpath):
-            if ".vtu" in file and "length" not in file:
-                file_u = File(files_path)
-                reader = VTKToDOLFIN(path.join(dirpath, file), mesh_old)
-                for i, u in enumerate(reader):
-                    if isinstance(u, tuple):
-                        t, u_old = u
-                u_new = interpolate(u, V)
-                u_new.rename("u", "velocity vector")
-                file_u << u_new
+            if ".vtu" in file and file.startswith("u_0"):
+                print file
+                ofile = files_path % file[2:-4]
+                ifile = path.join(dirpath, file)
+                project_mesh(ofile, ifile, mesh_new_path)
 
 
 if  __name__ == "__main__":
     case_path, length, multiple, bl = read_command_line()
-
+    
     for folder in listdir(case_path):
         casedir = path.join(case_path, folder)
         if path.isdir(path.join(case_path, folder)):

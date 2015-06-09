@@ -4,7 +4,8 @@ import os
 import vtk
 import array_handler
 
-from dolfin import Mesh, MeshEditor, VectorFunctionSpace, FunctionSpace, Function
+from dolfin import Mesh, MeshEditor, VectorFunctionSpace, FunctionSpace, Function, \
+                   MPI, mpi_comm_world
 
 def vtk_ug_to_dolfin_mesh(ug):
     """
@@ -120,7 +121,7 @@ class VTKToDOLFIN(object):
 
             # If there are no time data stored in the file use an empty array
             if np.all(np.diff(times)==1):
-                times = np.array([], "")
+                times = np.array([])
 
             # Store time data
             self._times = times
@@ -189,11 +190,12 @@ class VTKToDOLFIN(object):
         if self._mesh is None:
             self._mesh = vtk_ug_to_dolfin_mesh(self.reader.GetOutput())
 
-        # Small sanity check
-        assert(self._mesh.num_vertices() == \
-               self.reader.GetOutput().GetNumberOfPoints() and \
-               self._mesh.num_cells() == \
-               self.reader.GetOutput().GetNumberOfCells())
+        # Small sanity check, only works in parallel
+        if MPI.size(mpi_comm_world()) == 1:
+            assert(self._mesh.num_vertices() == \
+                self.reader.GetOutput().GetNumberOfPoints() and \
+                self._mesh.num_cells() == \
+                self.reader.GetOutput().GetNumberOfCells())
         
         return self._mesh
     
