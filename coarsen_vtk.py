@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 from os import path, listdir
-from dolfin import Mesh, FunctionSpace, CellSize, project
+from dolfin import Mesh, FunctionSpace, CellSize, project, plot
 from argparse import ArgumentParser
 from subprocess import check_output, STDOUT
 import sys
@@ -103,7 +103,8 @@ def project_mesh(ofile, ifile, mesh_new_path, recompute=False):
 
         status, msg = success(a)
         if not status:
-            print "Something went wrong projecting the mesh:\n%s" % msg
+            print "Something went wrong projecting the mesh:"
+            print a
             sys.exit(0)
 
 
@@ -113,10 +114,10 @@ def main(dirpath, factor, bl):
     surface_path = path.join(dirpath, "surface.vtp")
     vtu_path = [i for i in listdir(dirpath) if "001.vtu" in i][0]
     vtu_path = path.join(dirpath, vtu_path)
-
+    
     # Get length from old mesh
-    mesh_old = get_mesh(vtu_path, mesh_old_path)
     if isinstance(factor, type([])):
+        mesh_old = get_mesh(vtu_path, mesh_old_path)
         base_length = get_length(vtu_path, mesh_old)
         length = [base_length * i for i in factor]
     else:
@@ -124,7 +125,6 @@ def main(dirpath, factor, bl):
 
     # Get the surface
     create_surface(vtu_path, surface_path)
-    
     for l in length:
         # Compute the new mesh
         str_length = ("%.04f" % l).replace(".", "_")
