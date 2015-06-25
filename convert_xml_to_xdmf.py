@@ -61,6 +61,7 @@ def main(dirpath):
     file_Q = XDMFFile(mpi_comm_world(), path.join(dirpath, "case%s_Q.xdmf") % case)
     file_u.parameters["rewrite_function_mesh"] = False
     file_u.parameters["flush_output"] = True
+    file_u.parameters["multi_file"] = 1
     file_Q.parameters["rewrite_function_mesh"] = False
     file_Q.parameters["flush_output"] = True
 
@@ -93,4 +94,3 @@ def main(dirpath):
 if __name__ == "__main__":
     dirpath = read_command_line()
     main(dirpath)
-    t1 = time()
