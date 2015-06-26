@@ -12,6 +12,19 @@ def read_command_line():
     parser = ArgumentParser()
     parser.add_argument('--d', '--dir_path', type=str, default=".",
                         help="Relative path to the case you want to convert")
+
+    # Parameters for mesh coursening that are not implemented jet.
+    parser.add_argumetn('--mesh', type=str,
+                        default="challenge_case%s_zero_pressure.xml.gz",
+                        help="Path to the mesh")
+    parser.add_argument('--factor', type=float, default=1,
+                        help="If factor is set to anything else than 1" + \
+                        " (default) the median of the h of the existing mesh
+                        "divaided by factor will be set as the new edgelength"
+                        + \ " this mesh is by default uniform, there is not
+                        "implementet support for anything else")
+
+
     args = parser.parse_args()
 
     return args.d
@@ -64,6 +77,7 @@ def main(dirpath):
     file_u.parameters["multi_file"] = 1
     file_Q.parameters["rewrite_function_mesh"] = False
     file_Q.parameters["flush_output"] = True
+    file_Q.parameters["multi_file"] = 1
 
     # Naming convention
     filename = "pipe_ipcs_ab_cn_challenge_case1_zero_pressure_constant" + \
